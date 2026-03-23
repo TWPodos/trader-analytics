@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Search, TrendingUp, TrendingDown } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, Pencil, Trash2 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { useTrades } from "@/lib/trade-store";
+import { NewTradeForm } from "@/components/trades/new-trade-form";
 import {
   cn,
   formatCurrency,
@@ -24,9 +25,10 @@ const OUTCOME_FILTERS: { label: string; value: OutcomeFilter }[] = [
 ];
 
 export default function TradesPage() {
-  const { trades } = useTrades();
+  const { trades, deleteTrade, updateTrade } = useTrades();
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
   const [search, setSearch] = useState("");
+  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
 
   const filtered = trades.filter((t) => {
     const matchOutcome =
@@ -36,23 +38,26 @@ export default function TradesPage() {
       (outcomeFilter === "be" && t.outcome === "BE") ||
       (outcomeFilter === "open" && t.outcome === "Open") ||
       (outcomeFilter === "planned" && t.outcome === "Planned");
-
     const q = search.toLowerCase();
     const matchSearch = !q || t.market.toLowerCase().includes(q);
-
     return matchOutcome && matchSearch;
   });
+
+  function handleDelete(id: string) {
+    if (confirm("Delete this trade?")) deleteTrade(id);
+  }
+
+  function handleEditSave(trade: Omit<Trade, "id">) {
+    if (editingTrade) updateTrade(editingTrade.id, trade);
+    setEditingTrade(null);
+  }
 
   return (
     <div className="min-h-full bg-background">
       <Header title="Trades" subtitle="All trade records" />
-
       <div className="p-6 space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <div
-            className="flex items-center border border-border rounded-md overflow-hidden"
-            style={{ background: "#ffffff" }}
-          >
+          <div className="flex items-center border border-border rounded-md overflow-hidden" style={{ background: "#ffffff" }}>
             {OUTCOME_FILTERS.map((f, i) => (
               <button
                 key={f.value}
@@ -60,25 +65,15 @@ export default function TradesPage() {
                 className={cn(
                   "px-3 py-1.5 transition-colors",
                   i !== 0 && "border-l border-border",
-                  outcomeFilter === f.value
-                    ? "text-white"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  outcomeFilter === f.value ? "text-white" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 )}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  background: outcomeFilter === f.value ? "#2383e2" : undefined,
-                }}
+                style={{ fontSize: 11, fontWeight: 500, background: outcomeFilter === f.value ? "#2383e2" : undefined }}
               >
                 {f.label}
               </button>
             ))}
           </div>
-
-          <div
-            className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5"
-            style={{ background: "#ffffff", minWidth: 200 }}
-          >
+          <div className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5" style={{ background: "#ffffff", minWidth: 200 }}>
             <Search className="text-muted-foreground flex-shrink-0" style={{ width: 13, height: 13 }} />
             <input
               value={search}
@@ -93,27 +88,21 @@ export default function TradesPage() {
         <div className="border border-border rounded-md overflow-hidden" style={{ background: "#ffffff" }}>
           <div
             className="grid border-b border-border px-4 py-2"
-            style={{
-              gridTemplateColumns: "100px 110px 80px 120px 150px 110px 80px 70px",
-              background: "#f7f7f5",
-            }}
+            style={{ gridTemplateColumns: "100px 110px 80px 120px 150px 110px 80px 70px 1fr 60px", background: "#f7f7f5" }}
           >
             {["Date", "Market", "Direction", "Session", "Entry Model", "Risk", "PnL", "R", "Outcome"].map((col) => (
-              <span key={col} className="text-muted-foreground font-medium uppercase tracking-wide" style={{ fontSize: 11 }}>
-                {col}
-              </span>
+              <span key={col} className="text-muted-foreground font-medium uppercase tracking-wide" style={{ fontSize: 11 }}>{col}</span>
             ))}
+            <span />
           </div>
 
           {filtered.length === 0 && (
-            <div className="py-16 text-center text-muted-foreground" style={{ fontSize: 13 }}>
-              No trades found.
-            </div>
+            <div className="py-16 text-center text-muted-foreground" style={{ fontSize: 13 }}>No trades found.</div>
           )}
 
           <div className="divide-y divide-border">
             {filtered.map((trade) => (
-              <TradeRow key={trade.id} trade={trade} />
+              <TradeRow key={trade.id} trade={trade} onEdit={setEditingTrade} onDelete={handleDelete} />
             ))}
           </div>
         </div>
@@ -124,24 +113,29 @@ export default function TradesPage() {
           </p>
         )}
       </div>
+
+      {editingTrade && (
+        <NewTradeForm
+          initialValues={editingTrade}
+          onClose={() => setEditingTrade(null)}
+          onSave={handleEditSave}
+        />
+      )}
     </div>
   );
 }
 
-function TradeRow({ trade }: { trade: Trade }) {
+function TradeRow({ trade, onEdit, onDelete }: { trade: Trade; onEdit: (t: Trade) => void; onDelete: (id: string) => void }) {
   const isLong = trade.direction === "Long";
-
   return (
     <div
-      className="grid items-center px-4 py-2.5 hover:bg-secondary transition-colors"
-      style={{ gridTemplateColumns: "100px 110px 80px 120px 150px 110px 80px 70px" }}
+      className="group grid items-center px-4 py-2.5 hover:bg-secondary transition-colors"
+      style={{ gridTemplateColumns: "100px 110px 80px 120px 150px 110px 80px 70px 1fr 60px" }}
     >
       <span className="text-foreground" style={{ fontSize: 13 }}>{formatDateShort(trade.date)}</span>
       <span className="text-foreground font-medium" style={{ fontSize: 13 }}>{trade.market}</span>
       <div className="flex items-center gap-1">
-        {isLong
-          ? <TrendingUp style={{ width: 12, height: 12, color: "#0f7b6c" }} />
-          : <TrendingDown style={{ width: 12, height: 12, color: "#c74a4a" }} />}
+        {isLong ? <TrendingUp style={{ width: 12, height: 12, color: "#0f7b6c" }} /> : <TrendingDown style={{ width: 12, height: 12, color: "#c74a4a" }} />}
         <span style={{ fontSize: 13, color: isLong ? "#0f7b6c" : "#c74a4a" }}>{trade.direction}</span>
       </div>
       <span className="text-muted-foreground" style={{ fontSize: 13 }}>{trade.session}</span>
@@ -154,6 +148,20 @@ function TradeRow({ trade }: { trade: Trade }) {
         {trade.rMultiple !== undefined ? formatR(trade.rMultiple) : "—"}
       </span>
       <span className={cn(getOutcomeStyle(trade.outcome))}>{trade.outcome}</span>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => onEdit(trade)} className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-secondary text-muted-foreground hover:text-foreground" title="Edit trade">
+          <Pencil style={{ width: 14, height: 14 }} />
+        </button>
+        <button
+          onClick={() => onDelete(trade.id)}
+          className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-secondary text-muted-foreground"
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#c74a4a")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "")}
+          title="Delete trade"
+        >
+          <Trash2 style={{ width: 14, height: 14 }} />
+        </button>
+      </div>
     </div>
   );
 }
