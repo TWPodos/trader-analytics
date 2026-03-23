@@ -13,11 +13,15 @@ import type { Trade } from "./types";
 interface TradeStore {
   trades: Trade[];
   addTrade: (trade: Omit<Trade, "id">) => void;
+  deleteTrade: (id: string) => void;
+  updateTrade: (id: string, trade: Omit<Trade, "id">) => void;
 }
 
 const TradeContext = createContext<TradeStore>({
   trades: [],
   addTrade: () => {},
+  deleteTrade: () => {},
+  updateTrade: () => {},
 });
 
 const STORAGE_KEY = "traderos_trades";
@@ -43,15 +47,29 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
     const newTrade: Trade = { ...trade, id: `t-${Date.now()}` };
     setTrades((prev) => {
       const updated = [newTrade, ...prev];
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      } catch {}
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, []);
+
+  const deleteTrade = useCallback((id: string) => {
+    setTrades((prev) => {
+      const updated = prev.filter((t) => t.id !== id);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, []);
+
+  const updateTrade = useCallback((id: string, trade: Omit<Trade, "id">) => {
+    setTrades((prev) => {
+      const updated = prev.map((t) => t.id === id ? { ...trade, id } : t);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
       return updated;
     });
   }, []);
 
   return (
-    <TradeContext.Provider value={{ trades, addTrade }}>
+    <TradeContext.Provider value={{ trades, addTrade, deleteTrade, updateTrade }}>
       {children}
     </TradeContext.Provider>
   );
